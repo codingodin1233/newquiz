@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>PixelQuest 
+</title>
+<style>
+  :root{--phoneMax:420px;--bg:#041022;--muted:#9fb0c8;--accent:#ffd166}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#011018,#021218);font-family:Inter,system-ui,Arial;color:#eef7ff}
+  .wrap{display:flex;align-items:center;justify-content:center;height:100%;padding:12px}
+  .device{width:100%;max-width:var(--phoneMax);height:100vh;border-radius:14px;background:linear-gradient(180deg,#082033,#021018);overflow:hidden;display:flex;flex-direction:column}
+  header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03)}
+  header h1{font-size:16px;margin:0}
+  main{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px}
+  .hud{display:flex;gap:8px;width:100%;justify-content:space-between;padding:6px}
+  .stat{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:8px;border-radius:8px;font-size:13px}
+  .mapWrap{background:linear-gradient(180deg,#071a2b,#041016);padding:6px;border-radius:10px;display:flex;flex-direction:column;align-items:center}
+  canvas{image-rendering:pixelated;border-radius:8px;display:block;touch-action:none}
+  .controls{display:flex;gap:8px;width:100%;justify-content:space-between;padding:10px}
+  .dpad{width:138px;height:138px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:6px}
+  .dpad button{border-radius:10px;border:0;background:linear-gradient(180deg,#0b1a2c,#071018);color:#eaf6ff;font-weight:800}
+  .actionCol{display:flex;flex-direction:column;gap:8px;align-items:center}
+  .btn{padding:8px 12px;border-radius:10px;border:0;background:linear-gradient(180deg,var(--accent),#f0bf55);color:#061018;font-weight:800}
+  .expWrap{width:94%;Height:18px;background:rgba(255,255,255,0.03);border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.02)}
+  .expBar{height:100%;background:linear-gradient(90deg,#ffd166,#ffb347);width:0%}
+  /* overlay */
+  #overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);z-index:99999;pointer-events:auto}
+  .panel{background:linear-gradient(180deg,#072033,#021016);padding:12px;border-radius:12px;width:92%;max-width:420px;color:#eef7ff}
+  .question{background:linear-gradient(180deg,#081f33,#04101a);padding:10px;border-radius:10px;margin-bottom:8px}
+  .options{display:flex;flex-direction:column;gap:8px}
+  .opt{padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:linear-gradient(180deg,#072231,#04111a);color:var(--muted);font-weight:800}
+  .tiny{font-size:12px;color:var(--muted)}
+  .battleStage{width:92%;max-width:420px;height:240px;background:linear-gradient(180deg,#062035,#021018);border-radius:10px;padding:8px;display:flex;flex-direction:column;justify-content:space-between}
+  .battleRow{display:flex;justify-content:space-between;align-items:center}
+  .hpBar{height:12px;background:#112129;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+  .hpFill{height:100%;background:linear-gradient(90deg,#ff5b5b,#ff8b5b);width:100%}
+
+  /* debug panel */
+  #debugPanel{position:fixed;right:10px;top:10px;width:260px;max-height:60vh;overflow:auto;background:rgba(2,6,13,0.9);border-radius:8px;padding:8px;z-index:200000;color:#dff;box-shadow:0 10px 30px rgba(0,0,0,0.6)}
+  #debugPanel pre{white-space:pre-wrap;font-size:12px;color:#bfe;}
+  #debugPanel .btnTiny{font-size:12px;padding:6px;border-radius:6px;background:#ffd166;border:0;margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="device" role="application" aria-label="PixelQuest debug">
+      <header>
+        <div><h1 id="title">PixelQuest</h1><div class="tiny" id="subtitle">Retro RPG</div></div>
+        <div class="tiny">Quiz Game</div>
+      </header>
+
+      <main>
+        <div class="hud">
+          <div class="stat"><div class="tiny">HP</div><strong id="hp">10/10</strong></div>
+          <div class="stat"><div class="tiny">DMG</div><strong id="dmg">3</strong></div>
+          <div class="stat"><div class="tiny">LV</div><strong id="lv">1</strong></div>
+          <div class="stat"><div class="tiny">XP</div><strong id="xp">0</strong></div>
+        </div>
+
+        <div class="mapWrap">
+          <canvas id="screen" width="720" height="480" style="width:100%;height:auto"></canvas>
+          <div style="height:8px"></div>
+          <div class="expWrap"><div id="exp" class="expBar"></div></div>
+          <div style="height:6px"></div>
+        </div>
+
+        <div class="controls">
+          <div class="dpad" id="dpad">
+            <button data-dir=""></button>
+            <button data-dir="up">▲</button>
+            <button data-dir=""></button>
+            <button data-dir="left">◀</button>
+            <button data-dir="stop">◯</button>
+            <button data-dir="right">▶</button>
+            <button data-dir=""></button>
+            <button data-dir="down">▼</button>
+            <button data-dir=""></button>
+          </div>
+
+          <div class="actionCol">
+            <button id="action" class="btn">Action</button>
+            <button id="menu" class="btn">Menu</button>
+            <div class="tiny">Tap action to interact</div>
+          </div>
+        </div>
+      </main>
+
+      <footer style="padding:8px 12px;border-top:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)">
+        <div class="tiny">Progress saved locally</div>
+        <div><button id="reset" class="tiny" style="background:none;border:0;color:var(--muted)">Reset</button></div>
+      </footer>
+    </div>
+  </div>
+
+  <div id="overlay" aria-hidden="true"></div>
+
+  <!-- On-screen debug panel (visible so Edge users can see errors/logs) -->
+  <div id="debugPanel" aria-hidden="false">
+    <div style="font-weight:800;margin-bottom:6px">DEBUG</div>
+    <div><button id="forceBattle" class="btnTiny">Force Battle</button> <button id="clearLog" class="btnTiny">Clear</button></div>
+    <pre id="debugLog">Ready.</pre>
+  </div>
+
+  <!-- load your lang.js (keep this file in the same folder) -->
+  <script src="lang.js"></script>
+
+<script>
+/* -------------------------
+   Robust game engine (final)
+   - relies on lang.js loaded above (do not redeclare window.LANG here)
+   ------------------------- */
+
+/* Debug logging utilities (visible) */
+const debugLog = document.getElementById('debugLog');
+function logDebug(...args){
+  const stamp = new Date().toLocaleTimeString();
+  debugLog.textContent += `\n[${stamp}] ` + args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+  debugLog.scrollTop = debugLog.scrollHeight;
+}
+document.getElementById('clearLog').addEventListener('click', ()=> debugLog.textContent = 'Cleared.');
+
+window.addEventListener('error', function(e){
+  logDebug('Uncaught error:', e.message, 'at', e.filename + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', function(ev){
+  logDebug('Unhandled promise rejection:', ev.reason);
+});
+
+/* Basic helpers */
+function shuffle(a){ return a.slice().sort(()=>Math.random()-0.5); }
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function toast(msg){ logDebug('TOAST: ' + msg); }
+
+/* --- Buffer & scale --- */
+const NATIVE_W=240, NATIVE_H=160;
+const BUF = document.createElement('canvas'); BUF.width=NATIVE_W; BUF.height=NATIVE_H;
+const bctx = BUF.getContext('2d'); bctx.imageSmoothingEnabled=false;
+const screen = document.getElementById('screen'); const sctx = screen.getContext('2d'); sctx.imageSmoothingEnabled=false;
+function computeScale(){ const cssW = screen.getBoundingClientRect().width || 360; let scale = Math.max(2, Math.floor(cssW/NATIVE_W)); if(scale<2) scale=2; screen.width=NATIVE_W*scale; screen.height=NATIVE_H*scale; screen.style.width=(NATIVE_W*scale)+'px'; screen.style.height=(NATIVE_H*scale)+'px'; }
+computeScale(); window.addEventListener('resize', computeScale);
+
+/* --- Map --- */
+const TILE=16, COLS=15, ROWS=10, MAP_W=COLS*TILE, MAP_H=ROWS*TILE;
+const map=[]; for(let y=0;y<ROWS;y++){ for(let x=0;x<COLS;x++){ let t='grass'; if(y===5 && x>1 && x<13) t='path'; if(Math.random()<0.06) t='tree'; if(Math.random()<0.03) t='rock'; map.push({x,y,t}); } }
+[[2,2],[3,2],[10,1],[12,4],[8,7],[4,8]].forEach(([x,y])=> map[y*COLS + x].t='tree');
+// hotspots use LANG artists (if present)
+const hotspots = (window.LANG && window.LANG.artists) ? [{id:'bernal',x:2,y:2},{id:'roces',x:5,y:8},{id:'romero',x:9,y:3},{id:'joya',x:12,y:6}] : [];
+
+/* --- Entities --- */
+let mobs = [
+  {id:'m1',type:'easy',x:4,y:3,hp:5,maxHp:5},
+  {id:'m2',type:'easy',x:7,y:2,hp:5,maxHp:5},
+  {id:'m3',type:'medium',x:10,y:6,hp:10,maxHp:10},
+  {id:'m4',type:'hard',x:12,y:8,hp:15,maxHp:15}
+];
+let boss = {id:'boss',x:13,y:1,hp:60,maxHp:60};
+
+/* --- Player --- */
+let player = {x:1,y:1,hp:10,maxHp:10,dmg:3,level:1,xp:0,dir:'down',anim:0};
+
+/* LANG & UI */
+const QUESTION_BANK = (window.LANG && window.LANG.questions) ? window.LANG.questions : [];
+const UI = (window.LANG && window.LANG.ui) ? window.LANG.ui : {title:'PixelQuest',subtitle:'Retro RPG'};
+document.getElementById('title').innerText = UI.title; document.getElementById('subtitle').innerText = UI.subtitle;
+
+/* --- Draw helpers --- */
+function drawGrass(bx,by){ bctx.fillStyle='#1c4b22'; bctx.fillRect(bx,by,TILE,TILE); bctx.fillStyle='#2b6b2f'; bctx.fillRect(bx+2,by+2,3,3); bctx.fillRect(bx+8,by+5,2,2); }
+function drawPath(bx,by){ bctx.fillStyle='#7b6041'; bctx.fillRect(bx,by,TILE,TILE); bctx.fillStyle='#8b6b4d'; bctx.fillRect(bx+1,by+2,TILE-2,TILE-4); }
+function drawTree(bx,by){ bctx.fillStyle='#163f2a'; bctx.fillRect(bx+1,by+1,14,8); bctx.fillStyle='#2b6e38'; bctx.fillRect(bx+3,by+3,10,6); bctx.fillStyle='#3b2311'; bctx.fillRect(bx+6,by+8,4,8); }
+function drawRock(bx,by){ bctx.fillStyle='#394a52'; bctx.fillRect(bx+3,by+6,10,6); bctx.fillStyle='#4a5b63'; bctx.fillRect(bx+5,by+4,6,3); }
+function drawMap(){ bctx.fillStyle='#061022'; bctx.fillRect(0,0,NATIVE_W,NATIVE_H); for(let y=0;y<ROWS;y++){ for(let x=0;x<COLS;x++){ const tile = map[y*COLS + x]; const bx=x*TILE - camera.x; const by=y*TILE - camera.y; if(tile.t==='grass') drawGrass(bx,by); else if(tile.t==='path') drawPath(bx,by); else if(tile.t==='tree') drawTree(bx,by); else if(tile.t==='rock') drawRock(bx,by); } } }
+function drawHotspots(){ for(const s of hotspots){ const bx = s.x*TILE - camera.x + TILE/2 - 3; const by = s.y*TILE - camera.y + TILE/2 - 6; bctx.fillStyle='#ffd166'; bctx.fillRect(bx,by,6,6); bctx.fillStyle='#081018'; bctx.fillRect(bx+2,by+2,2,2); } }
+function drawPlayer(px,py){ const bx=px*TILE-camera.x; const by=py*TILE-camera.y; bctx.fillStyle='rgba(0,0,0,0.45)'; bctx.fillRect(bx+4,by+TILE-2,8,3); bctx.fillStyle='#071018'; bctx.fillRect(bx+4,by+4,8,18); bctx.fillStyle='#ffd7b8'; bctx.fillRect(bx+5,by+5,6,5); bctx.fillStyle='#2b3f6b'; bctx.fillRect(bx+3,by+4,10,3); bctx.fillStyle='#071018'; bctx.fillRect(bx+6,by+6,1,1); bctx.fillRect(bx+8,by+6,1,1); bctx.fillStyle='#4ba3f7'; bctx.fillRect(bx+5,by+11,6,6); bctx.fillStyle='#15304f'; bctx.fillRect(bx+5,by+17,3,5); bctx.fillRect(bx+8,by+17,3,5); bctx.fillStyle='#6ec2ff'; bctx.fillRect(bx+6,by+12,2,1); }
+function drawMob(m){ const bx=m.x*TILE-camera.x; const by=m.y*TILE-camera.y; bctx.fillStyle='rgba(0,0,0,0.45)'; bctx.fillRect(bx+2,by+TILE-3,TILE-4,3); bctx.fillStyle='#071018'; bctx.fillRect(bx+2,by+4,TILE-4,TILE-8); if(m.type==='easy'){ bctx.fillStyle='#4b8b3b'; bctx.fillRect(bx+3,by+6,TILE-6,TILE-9); bctx.fillStyle='#ffd18a'; bctx.fillRect(bx+4,by+5,2,2); bctx.fillRect(bx+10,by+5,2,2); bctx.fillStyle='#071018'; bctx.fillRect(bx+7,by+8,2,2); } else if(m.type==='medium'){ bctx.fillStyle='#b86f1b'; bctx.fillRect(bx+2,by+6,TILE-4,TILE-9); bctx.fillStyle='#8a4f15'; bctx.fillRect(bx-1,by+7,4,3); bctx.fillRect(bx+TILE-3,by+7,4,3); bctx.fillStyle='#071018'; bctx.fillRect(bx+7,by+8,2,2); } else { bctx.fillStyle='#8b2b4b'; bctx.fillRect(bx+2,by+5,TILE-4,TILE-11); bctx.fillStyle='#5b1a3a'; bctx.fillRect(bx+3,by+4,2,2); bctx.fillRect(bx+9,by+4,2,2); bctx.fillStyle='#071018'; bctx.fillRect(bx+7,by+7,2,2); } bctx.fillStyle='#2a1212'; bctx.fillRect(bx+1,by-4,TILE-2,3); const pct=Math.max(0,m.hp)/m.maxHp; bctx.fillStyle='#b86f1b'; bctx.fillRect(bx+1,by-4,Math.floor((TILE-2)*pct),3); }
+function drawBoss(b){ const bx=b.x*TILE-camera.x; const by=b.y*TILE-camera.y; bctx.fillStyle='#5b2b8b'; bctx.fillRect(bx+2,by+2,TILE*2-4,TILE*2-4); bctx.fillStyle='#2b0b1b'; bctx.fillRect(bx+8,by+10,(TILE*2 - 16 >0 ? (TILE*2-16) : TILE),6); bctx.fillStyle='#2c1010'; bctx.fillRect(bx+2,by-6,TILE*2-4,4); bctx.fillStyle='#ff5b5b'; bctx.fillRect(bx+2,by-6,Math.floor((TILE*2-4)*(b.hp/b.maxHp)),4); }
+
+/* camera */
+let camera={x:0,y:0,w:NATIVE_W,h:NATIVE_H};
+function updateCamera(){ const px=player.x*TILE; const py=player.y*TILE; camera.x=px-camera.w/2+TILE/2; camera.y=py-camera.h/2+TILE/2; camera.x=Math.max(0, Math.min(camera.x, MAP_W-camera.w)); camera.y=Math.max(0, Math.min(camera.y, MAP_H-camera.h)); }
+
+/* input */
+let input={up:false,down:false,left:false,right:false}; let inputLock=false;
+window.addEventListener('keydown',(e)=>{ if(inputLock) return; if(e.code==='ArrowUp'||e.code==='KeyW') input.up=true; if(e.code==='ArrowDown'||e.code==='KeyS') input.down=true; if(e.code==='ArrowLeft'||e.code==='KeyA') input.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') input.right=true; if(e.code==='Space'||e.code==='Enter') doAction(); });
+window.addEventListener('keyup',(e)=>{ if(e.code==='ArrowUp'||e.code==='KeyW') input.up=false; if(e.code==='ArrowDown'||e.code==='KeyS') input.down=false; if(e.code==='ArrowLeft'||e.code==='KeyA') input.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') input.right=false; });
+document.getElementById('dpad').addEventListener('pointerdown',ev=>{ const dir=ev.target.dataset.dir; handleDpad(dir,true); });
+document.getElementById('dpad').addEventListener('pointerup',ev=>{ const dir=ev.target.dataset.dir; handleDpad(dir,false); });
+function handleDpad(dir,on){ if(inputLock) return; if(dir==='up') input.up=on; if(dir==='down') input.down=on; if(dir==='left') input.left=on; if(dir==='right') input.right=on; }
+document.getElementById('action').addEventListener('pointerdown', ()=>{ if(!inputLock) doAction(); });
+document.getElementById('menu').addEventListener('pointerdown', ()=>{ if(!inputLock) showMenu(); });
+document.getElementById('reset').addEventListener('pointerdown', ()=>{ if(confirm('Reset?')){ localStorage.removeItem('pixelquest_save_debug'); location.reload(); } });
+
+/* collisions & helpers */
+function tileBlocked(x,y){ if(x<0||y<0||x>=COLS||y>=ROWS) return true; const t=map[y*COLS + x].t; if(t==='rock') return true; return false; }
+function mobAt(x,y){ return mobs.find(m=>m.x===x && m.y===y && m.hp>0); }
+function bossAt(x,y){ return boss && boss.x===x && boss.y===y && boss.hp>0; }
+
+/* question helpers */
+function pickQuestionByKind(kind){ const pool = QUESTION_BANK.filter(q=>q.kind===kind); return pool.length ? pool[Math.floor(Math.random()*pool.length)] : QUESTION_BANK[Math.floor(Math.random()*QUESTION_BANK.length)]; }
+function idMatches(expected,input){ const got = String(input||'').trim().toLowerCase(); if(!got) return false; if(Array.isArray(expected)){ for(const a of expected){ const an=String(a).trim().toLowerCase(); if(an===got) return true; if(got.includes(an)) return true; if(an.includes(got)) return true; } return false; } else { const an=String(expected).trim().toLowerCase(); return an===got || got.includes(an) || an.includes(got); } }
+
+/* battle globals */
+let mode='explore', activeQuestion=null, activeOpponent=null, activeIsBoss=false, bossSeq=[], bossIdx=0;
+const overlay = document.getElementById('overlay');
+
+/* overlay event delegation (respects locks) */
+overlay.addEventListener('click', (e)=>{
+  try{
+    // closers that should always work (even during animations)
+    const closeEls = e.target.closest('#close') || e.target.closest('#closeMenu') || e.target.closest('#respawn') || e.target.closest('#again');
+    if(closeEls){
+      hideOverlay();
+      return;
+    }
+
+    // If an animation is running or we're locked, ignore option clicks
+    if(inputLock){
+      logDebug('overlay click ignored (inputLock active).');
+      return;
+    }
+
+    const opt = e.target.closest('.opt');
+    if(opt && activeQuestion && activeOpponent){
+      if(opt.id === 'idSub'){
+        const v = (document.getElementById('idAns') || {}).value || '';
+        logDebug('User submitted ID answer:', v);
+        inputLock = true;
+        overlay.style.pointerEvents = 'none';
+        resolveAnswer(activeQuestion, v, activeOpponent, activeIsBoss);
+        return;
+      }
+      const val = opt.dataset.val;
+      if(val !== undefined){
+        logDebug('User clicked choice:', val);
+        inputLock = true;
+        overlay.style.pointerEvents = 'none';
+        resolveAnswer(activeQuestion, val, activeOpponent, activeIsBoss);
+        return;
+      }
+    }
+  }catch(err){ logDebug('overlay handler error:', err && err.message); }
+});
+
+/* battle flow */
+
+function beginEncounter(mob){
+  try{
+    logDebug('beginEncounter ->', mob && mob.id);
+    activeOpponent = mob; activeIsBoss = false; inputLock = true;
+    animateEncounter(()=>{ mode='battle'; askForMobQuestion(mob); });
+  }catch(err){ logDebug('beginEncounter error', err && err.message); inputLock=false; }
+}
+
+function beginBoss(){
+  try{
+    logDebug('beginBoss');
+    bossSeq = shuffle(QUESTION_BANK).slice(0,8); bossIdx=0; activeIsBoss=true; inputLock=true;
+    animateEncounter(()=>{ mode='boss'; askBossQuestion(); });
+  }catch(err){ logDebug('beginBoss error', err && err.message); inputLock=false; }
+}
+
+function askForMobQuestion(mob){
+  try{
+    activeOpponent = mob; activeIsBoss=false;
+    activeQuestion = pickQuestionByKind(mob.type==='easy'?'tf':(mob.type==='medium'?'mcq':'id'));
+    logDebug('askForMobQuestion', {q: activeQuestion.id, kind: activeQuestion.kind});
+    showBattleQuestion(activeQuestion, mob, false);
+    inputLock = false; // allow user to click an option
+    overlay.style.pointerEvents = 'auto';
+  }catch(err){ logDebug('askForMobQuestion error', err && err.message); hideOverlay(); inputLock=false;}
+}
+
+function askBossQuestion(){
+  try{
+    activeOpponent = boss; activeIsBoss=true;
+    if(bossIdx >= bossSeq.length) bossIdx = 0;
+    activeQuestion = bossSeq[bossIdx];
+    logDebug('askBossQuestion', {q: activeQuestion.id});
+    showBattleQuestion(activeQuestion, boss, true);
+    inputLock = false;
+    overlay.style.pointerEvents = 'auto';
+  }catch(err){ logDebug('askBossQuestion error', err && err.message); hideOverlay(); inputLock=false;}
+}
+
+function showBattleQuestion(q, opponent, isBoss){
+  try{
+    activeQuestion = q; activeOpponent = opponent; activeIsBoss = !!isBoss;
+    const html = buildBattleStage(q, opponent, isBoss);
+    overlay.style.display='flex'; overlay.innerHTML = html; overlay.setAttribute('aria-hidden','false'); overlay.style.pointerEvents='auto';
+    logDebug('Overlay shown. State:', { mode, activeQuestionId: q && q.id, activeOpponentId: opponent && opponent.id, inputLock });
+    setTimeout(()=>{ const f = overlay.querySelector('.opt'); if(f) f.focus(); },50);
+  }catch(err){ logDebug('showBattleQuestion error', err && err.message); hideOverlay(); inputLock=false; }
+}
+
+function buildBattleStage(q, opponent, isBoss){
+  const playerHPPercent = Math.max(0, player.hp)/player.maxHp;
+  const oppHPPercent = Math.max(0, opponent.hp)/opponent.maxHp;
+  let choicesHtml='';
+  if(q.kind==='mcq'){ const shuffled = shuffle(q.choices.slice()); for(let i=0;i<shuffled.length;i++){ choicesHtml += `<button class="opt" data-val="${escapeHtml(shuffled[i])}">${String.fromCharCode(65+i)}. ${escapeHtml(shuffled[i])}</button>`; } }
+  else if(q.kind==='tf'){ choicesHtml = `<button class="opt" data-val="true">True</button><button class="opt" data-val="false">False</button>`; }
+  else { choicesHtml = `<input id="idAns" placeholder="Answer" style="width:100%;padding:8px;border-radius:8px;border:0"/><div style="height:6px"></div><button class="opt" id="idSub">Submit</button>`; }
+
+  return `
+  <div style="width:92%;max-width:420px;">
+    <div class="battleStage">
+      <div class="battleRow" style="justify-content:space-between">
+        <div style="width:44%;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:6px"><div style="font-weight:800">You</div><div class="tiny">LV ${player.level}</div></div>
+          <div class="hpBar"><div id="playerHpFill" class="hpFill" style="width:${Math.floor(playerHPPercent*100)}%"></div></div>
+        </div>
+        <div style="width:44%;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <div style="display:flex;align-items:center;gap:6px"><div class="tiny">LV ${isBoss?'??':(opponent.type?(opponent.type==='easy'?1:(opponent.type==='medium'?3:5)):'?')}</div><div style="font-weight:800">${isBoss ? 'Curator' : (opponent.type ? opponent.type.toUpperCase() : 'Enemy')}</div></div>
+          <div class="hpBar"><div id="enemyHpFill" class="hpFill" style="width:${Math.floor(oppHPPercent*100)}%"></div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <canvas id="stagePreview" width="200" height="72" style="width:100%;height:auto;background:transparent"></canvas>
+      </div>
+
+      <div style="margin-top:6px">
+        <div class="question"><div style="font-weight:800">${escapeHtml(q.text)}</div></div>
+        <div class="options">${choicesHtml}</div>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function resolveAnswer(q, val, opponent, isBoss){
+  try{
+    if(!q || !opponent){ logDebug('resolveAnswer called with missing q/opponent'); hideOverlay(); inputLock=false; overlay.style.pointerEvents='auto'; return; }
+    let correct=false;
+    if(q.kind==='tf') correct = ((val==='true') === q.answer);
+    else if(q.kind==='mcq') correct = (val === q.answer);
+    else correct = idMatches(q.answer, val);
+
+    // lock UI and disable overlay clicking while animation runs
+    inputLock = true;
+    overlay.style.pointerEvents = 'none';
+
+    // stage preview
+    const preview = document.getElementById('stagePreview');
+    const pctx = (preview && preview.getContext) ? preview.getContext('2d') : null;
+    if(pctx) pctx.imageSmoothingEnabled=false;
+
+    function renderStageFrame(pShift=0,eShift=0){
+      if(!pctx) return;
+      pctx.clearRect(0,0,preview.width,preview.height);
+      pctx.fillStyle='#08303b'; pctx.fillRect(0,preview.height-24,preview.width,24);
+      // player sprite (two boxes)
+      pctx.fillStyle='#ffd7b8'; pctx.fillRect(32+pShift,8,8,8);
+      pctx.fillStyle='#4ba3f7'; pctx.fillRect(32+pShift,18,8,8);
+      // enemy sprite (on right)
+      const ex = preview.width-64+eShift;
+      const color = opponent===boss ? '#5b2b8b' : (opponent.type==='easy'?'#4b8b3b':opponent.type==='medium'?'#b86f1b':'#8b2b4b');
+      pctx.fillStyle=color; pctx.fillRect(ex,8,14,12);
+    }
+
+    const playerFill = document.getElementById('playerHpFill'); const enemyFill = document.getElementById('enemyHpFill');
+
+    if(correct){
+      logDebug('Answer correct');
+      // simple pounce animation: player moves forward and back while enemy HP reduces
+      let t=0, steps=12; const startEnemy=opponent.hp; const damage = player.dmg; const newHP=Math.max(0, opponent.hp - damage);
+      const iv = setInterval(()=>{ t++; const shift = Math.round(10 * Math.sin((t/steps)*Math.PI)); renderStageFrame(shift,0); if(t>=steps){ clearInterval(iv); opponent.hp=newHP;
+          // animate hp bar
+          animateHpBar(enemyFill, startEnemy, newHP, opponent.maxHp, ()=>{
+            logDebug('Enemy HP updated', {hp:opponent.hp});
+            toast('Correct!');
+            // if enemy died -> hide overlay and return to exploration
+            if(opponent.hp<=0){
+              if(isBoss){
+                victory();
+                return;
+              } else {
+                const xpGain = (opponent.type==='easy'?8:(opponent.type==='medium'?16:28));
+                player.xp += xpGain;
+                logDebug('XP gained', xpGain);
+                const mapMob = mobs.find(m=>m.id===opponent.id);
+                if(mapMob) mapMob.hp = 0;
+                checkLevel();
+                saveState();
+                hideOverlay();
+                mode='explore';
+                inputLock=false;
+                overlay.style.pointerEvents='auto';
+                return;
+              }
+            }
+            // if not dead, continue to next question
+            setTimeout(()=>{
+              if(isBoss){ bossIdx++; askBossQuestion(); } else { askForMobQuestion(opponent); }
+            }, 420);
+            inputLock=false;
+            overlay.style.pointerEvents='auto';
+          });
+      } },30);
+    } else {
+      logDebug('Answer wrong');
+      // enemy pounces on player
+      let t=0, steps=12; const startPlayer=player.hp; const damage = isBoss?6:(opponent.type==='easy'?2:(opponent.type==='medium'?3:4)); const newHP=Math.max(0, player.hp - damage);
+      const iv = setInterval(()=>{ t++; const eShift = Math.round(10 * Math.sin((t/steps)*Math.PI)); renderStageFrame(0,-eShift); if(t>=steps){ clearInterval(iv); player.hp = newHP;
+          animateHpBar(playerFill, startPlayer, newHP, player.maxHp, ()=>{
+            logDebug('Player HP updated', {hp:player.hp});
+            toast('Wrong!');
+            if(player.hp<=0){ gameOver(); return; }
+            setTimeout(()=>{ if(isBoss) askBossQuestion(); else askForMobQuestion(opponent); },420);
+            inputLock=false;
+            overlay.style.pointerEvents='auto';
+          });
+      } },30);
+    }
+
+  }catch(err){ logDebug('resolveAnswer error', err && err.message); hideOverlay(); inputLock=false; overlay.style.pointerEvents='auto'; }
+}
+
+function animateHpBar(fillElem, startHP, endHP, maxHP, cb){ const startPct = Math.max(0,startHP)/maxHP*100; const endPct = Math.max(0,endHP)/maxHP*100; const steps=12; let i=0; const iv=setInterval(()=>{ i++; const cur = startPct + (endPct-startPct)*(i/steps); if(fillElem) fillElem.style.width = cur+'%'; if(i>=steps){ clearInterval(iv); if(cb) cb(); } },30); }
+
+/* animateEncounter: shake then cb (no overlay hide) */
+function animateEncounter(cb){
+  try{
+    const orig = screen.style.transform || '';
+    let t=0; const dur=480;
+    const iv = setInterval(()=>{ t+=16; const p=t/dur; const shake = Math.sin(p*20) * 6 * (1-p); screen.style.transform = `translateX(${shake}px)`; if(t>=dur){ clearInterval(iv); screen.style.transform = orig; logDebug('animateEncounter done'); try{ cb(); }catch(err){ logDebug('animateEncounter cb error', err && err.message); } } },16);
+  }catch(err){ logDebug('animateEncounter error', err && err.message); if(cb) cb(); }
+}
+
+/* overlay helpers */
+function hideOverlay(){ overlay.style.display='none'; overlay.innerHTML=''; overlay.setAttribute('aria-hidden','true'); overlay.style.pointerEvents='none'; activeQuestion=null; activeOpponent=null; activeIsBoss=false; inputLock=false; }
+function showMenu(){ overlay.style.display='flex'; overlay.innerHTML = `<div class="panel"><h3>Menu</h3><div class="tiny">HP: ${player.hp}/${player.maxHp}<br/>DMG: ${player.dmg}<br/>LV: ${player.level}<br/>XP: ${player.xp}</div><div style="height:8px"></div><button id="closeMenu" class="btn">Close</button></div>`; overlay.setAttribute('aria-hidden','false'); overlay.style.pointerEvents='auto'; document.getElementById('closeMenu').addEventListener('click', hideOverlay); }
+function doAction(){ for(const s of hotspots){ if(Math.abs(s.x-player.x)<=1 && Math.abs(s.y-player.y)<=1){ const art=(window.LANG && window.LANG.artists)? window.LANG.artists.find(x=>x.id===s.id):null; if(art){ overlay.style.display='flex'; overlay.innerHTML = `<div class="panel"><h3>${escapeHtml(art.name)}</h3><div class="tiny">${escapeHtml(art.short)}</div><div style="height:8px"></div><button id="close" class="btn">Close</button></div>`; overlay.setAttribute('aria-hidden','false'); overlay.style.pointerEvents='auto'; document.getElementById('close').addEventListener('click', hideOverlay); return; } } } logDebug('Action: nothing nearby'); }
+
+/* level & xp */
+function checkLevel(){ const need = 10 + (player.level-1)*12; if(player.xp >= need){ player.xp -= need; player.level +=1; mode='levelup'; showLevelUp(); } refreshHUD(); }
+function showLevelUp(){ overlay.style.display='flex'; overlay.innerHTML = `<div class="panel center"><h3>${escapeHtml(window.LANG.ui.levelUpTitle)}</h3><div class="tiny">${escapeHtml(window.LANG.ui.levelUpPrompt)}</div><div style="height:12px"></div><div style="display:flex;gap:8px;justify-content:center"><button id="hpPlus" class="btn">+1 HP</button><button id="dmgPlus" class="btn">+1 DMG</button></div></div>`; overlay.setAttribute('aria-hidden','false'); overlay.style.pointerEvents='auto'; document.getElementById('hpPlus').addEventListener('click', ()=>{ player.maxHp+=1; player.hp+=1; hideOverlay(); mode='explore'; saveState(); refreshHUD(); }); document.getElementById('dmgPlus').addEventListener('click', ()=>{ player.dmg+=1; hideOverlay(); mode='explore'; saveState(); refreshHUD(); }); }
+
+/* victory & game over */
+function victory(){ saveState(); overlay.style.display='flex'; overlay.innerHTML = `<div class="panel center"><div style="font-size:48px">🏆</div><h3>Victory!</h3><div class="tiny">You defeated the Curator!</div><div style="height:8px"></div><button id="again" class="btn">Play again</button></div>`; overlay.setAttribute('aria-hidden','false'); overlay.style.pointerEvents='auto'; document.getElementById('again').addEventListener('click', ()=>{ localStorage.removeItem('pixelquest_save_debug'); location.reload(); }); }
+function gameOver(){ overlay.style.display='flex'; overlay.innerHTML = `<div class="panel center"><h3>Game Over</h3><div class="tiny">You fainted. Respawn at start.</div><div style="height:8px"></div><button id="respawn" class="btn">Respawn</button></div>`; overlay.setAttribute('aria-hidden','false'); overlay.style.pointerEvents='auto'; document.getElementById('respawn').addEventListener('click', ()=>{ hideOverlay(); player.x=1; player.y=1; player.hp = player.maxHp; mode='explore'; saveState(); refreshHUD(); }); }
+
+/* save/load/hud */
+function saveState(){ try{ const s={player,mobs,boss}; localStorage.setItem('pixelquest_save_debug', JSON.stringify(s)); logDebug('Saved state'); }catch(e){ logDebug('saveState error', e && e.message); } }
+function loadState(){ try{ const s = localStorage.getItem('pixelquest_save_debug'); if(!s) return; const o = JSON.parse(s); if(o.player) player = Object.assign(player, o.player); if(o.mobs) mobs = o.mobs; if(o.boss) boss = o.boss; logDebug('Loaded state'); }catch(e){ logDebug('loadState error', e && e.message); } }
+loadState();
+function refreshHUD(){ document.getElementById('hp').innerText = `${player.hp}/${player.maxHp}`; document.getElementById('dmg').innerText = player.dmg; document.getElementById('lv').innerText = player.level; document.getElementById('xp').innerText = player.xp; const need = 10 + (player.level-1)*12; const frac = Math.max(0, Math.min(1, player.xp / need)); document.getElementById('exp').style.width = (frac*100)+'%'; }
+refreshHUD(); // ensure HUD reflects loaded state immediately
+
+/* main loop */
+updateCamera();
+let last = performance.now();
+function loop(now){
+  const dt=(now-last)/1000; last=now;
+  if(mode==='explore' && !inputLock){
+    let moved=false; let nx=player.x, ny=player.y;
+    if(input.up){ ny=player.y-1; input.up=false; moved=true; player.dir='up'; }
+    else if(input.down){ ny=player.y+1; input.down=false; moved=true; player.dir='down'; }
+    else if(input.left){ nx=player.x-1; input.left=false; moved=true; player.dir='left'; }
+    else if(input.right){ nx=player.x+1; input.right=false; moved=true; player.dir='right'; }
+    if(moved){
+      if(!tileBlocked(nx,ny)){ player.x=nx; player.y=ny; updateCamera(); const mob = mobAt(nx,ny); if(mob){ beginEncounter(mob); } else if(bossAt(nx,ny)){ beginBoss(); } saveState(); } else { logDebug('Blocked at', nx,ny); }
+    }
+  }
+  // draw
+  drawMap(); drawHotspots();
+  const sprites=[];
+  for(const m of mobs) if(m.hp>0) sprites.push({type:'mob',obj:m,y:m.y});
+  if(boss && boss.hp>0) sprites.push({type:'boss',obj:boss,y:boss.y});
+  sprites.push({type:'player',obj:player,y:player.y});
+  sprites.sort((a,b)=> a.y - b.y);
+  for(const s of sprites){ if(s.type==='mob') drawMob(s.obj); else if(s.type==='boss') drawBoss(s.obj); else drawPlayer(s.obj.x, s.obj.y); }
+  sctx.clearRect(0,0,screen.width,screen.height);
+  sctx.imageSmoothingEnabled=false;
+  sctx.drawImage(BUF,0,0,BUF.width,BUF.height,0,0,screen.width,screen.height);
+  refreshHUD();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* debug panel controls (forceBattle picks mob, otherwise boss) */
+document.getElementById('forceBattle').addEventListener('click', ()=>{
+  try{
+    logDebug('Force Battle requested');
+    const m = mobs.find(x=>x.hp>0);
+    if(m) beginEncounter(m);
+    else if(boss && boss.hp>0) beginBoss();
+    else logDebug('No mobs/boss available to force');
+  }catch(e){ logDebug('forceBattle error', e && e.message); }
+});
+
+/* small hint */
+setTimeout(()=> logDebug('Ready — use D-pad or Force Battle. If overlay still fails, copy debug log and paste here.'), 800);
+
+</script>
+</body>
+</html>
